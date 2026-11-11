@@ -1,0 +1,110 @@
+<main class="app-shell">
+  <header class="topbar">
+    <a class="brand" href="/" [attr.aria-label]="t('homeLabel')">
+      <span class="brand-mark" aria-hidden="true">O</span>
+      <span>{{ t('appTitle') }}</span>
+    </a>
+    <span class="topbar-note">{{ t('appSubtitle') }}</span>
+  </header>
+
+  <section class="page-heading" aria-labelledby="page-title">
+    <div>
+      <p class="eyebrow">{{ t('appTitle') }}</p>
+      <h1 id="page-title">{{ t('directoryHeading') }}</h1>
+      <p class="lede">{{ t('directoryDescription') }}</p>
+    </div>
+    <button class="button button-primary" type="button" (click)="showForm() ? closeForm() : openForm()">
+      <span aria-hidden="true">{{ showForm() ? '−' : '+' }}</span>
+      {{ t(showForm() ? 'closeForm' : 'addOrganisation') }}
+    </button>
+  </section>
+
+  @if (showForm()) {
+    <section class="create-card" aria-labelledby="create-heading">
+      <div class="card-heading">
+        <div><p class="eyebrow">{{ t('addOrganisation') }}</p><h2 id="create-heading">{{ t('createHeading') }}</h2></div>
+        <button class="icon-button" type="button" [attr.aria-label]="t('closeForm')" (click)="closeForm()">×</button>
+      </div>
+      @if (formMessage(); as message) {
+        <p class="form-message" [class.success-message]="message === 'createSuccess'" role="status">{{ t(message) }}</p>
+      }
+      <form [formGroup]="form" (ngSubmit)="createOrganisation()" novalidate>
+        <div class="form-grid">
+          <label class="field field-wide" for="org-name">
+            <span>{{ t('nameLabel') }}</span>
+            <input id="org-name" formControlName="name" [placeholder]="t('namePlaceholder')" autocomplete="organization" (blur)="form.controls.name.markAsTouched()">
+            @if (hasError('name')) {
+              <span class="field-error" role="alert">
+                @if (form.controls.name.hasError('required')) { {{ t('requiredError') }} }
+                @else if (form.controls.name.hasError('minlength')) { {{ t('nameMinError') }} }
+                @else if (form.controls.name.hasError('maxlength')) { {{ t('nameMaxError') }} }
+                @else if (form.controls.name.hasError('uniqueName')) { {{ t('nameUniqueError') }} }
+              </span>
+            }
+          </label>
+          <label class="field" for="org-status"><span>{{ t('statusLabel') }}</span>
+            <select id="org-status" formControlName="status">
+              <option value="active">{{ t('statusActive') }}</option><option value="inactive">{{ t('statusInactive') }}</option><option value="suspended">{{ t('statusSuspended') }}</option>
+            </select>
+          </label>
+          <label class="field" for="org-email"><span>{{ t('ownerEmailLabel') }}</span>
+            <input id="org-email" formControlName="ownerEmail" type="email" [placeholder]="t('ownerEmailPlaceholder')" autocomplete="email" (blur)="form.controls.ownerEmail.markAsTouched()">
+            @if (hasError('ownerEmail')) { <span class="field-error" role="alert">{{ form.controls.ownerEmail.hasError('required') ? t('requiredError') : t('emailError') }}</span> }
+          </label>
+          <label class="field" for="org-members"><span>{{ t('memberCountLabel') }}</span>
+            <input id="org-members" formControlName="memberCount" type="number" min="0" step="1" (blur)="form.controls.memberCount.markAsTouched()">
+            @if (hasError('memberCount')) { <span class="field-error" role="alert">{{ t('memberMinError') }}</span> }
+          </label>
+        </div>
+        <div class="form-actions"><button class="button button-secondary" type="button" (click)="closeForm()">{{ t('cancel') }}</button><button class="button button-primary" type="submit">{{ t('createSubmit') }}</button></div>
+      </form>
+    </section>
+  }
+
+  <section class="directory-card" aria-labelledby="table-heading">
+    <div class="directory-card-heading">
+      <div><h2 id="table-heading">{{ t('directoryHeading') }}</h2><p>{{ recordCountLabel() }}</p></div>
+    </div>
+    <div class="toolbar">
+      <label class="search-field" for="org-search"><span class="visually-hidden">{{ t('searchLabel') }}</span><span class="search-icon" aria-hidden="true">⌕</span><input id="org-search" type="search" [value]="searchInput()" [placeholder]="t('searchPlaceholder')" (input)="onSearch($any($event.target).value)"></label>
+      <label class="select-field" for="status-filter"><span>{{ t('statusFilter') }}</span>
+        <select id="status-filter" [value]="statusFilter()" (change)="onStatusChange($any($event.target).value)">
+          <option value="all">{{ t('allStatuses') }}</option><option value="active">{{ t('statusActive') }}</option><option value="inactive">{{ t('statusInactive') }}</option><option value="suspended">{{ t('statusSuspended') }}</option><option value="unknown">{{ t('statusUnknown') }}</option>
+        </select>
+      </label>
+      <label class="select-field" for="sort-field"><span>{{ t('sortBy') }}</span>
+        <select id="sort-field" [value]="sortField()" (change)="onSortChange($any($event.target).value)"><option value="name">{{ t('sortName') }}</option><option value="createdAt">{{ t('sortCreated') }}</option></select>
+      </label>
+      <label class="select-field direction-field" for="sort-direction"><span class="visually-hidden">{{ t('directionLabel') }}</span>
+        <select id="sort-direction" [value]="sortDirection()" (change)="onDirectionChange($any($event.target).value)"><option value="asc">{{ t('sortAscending') }}</option><option value="desc">{{ t('sortDescending') }}</option></select>
+      </label>
+    </div>
+
+    @if (state() === 'loading') {
+      <div class="state-panel loading-panel" role="status"><span class="loading-mark" aria-hidden="true"></span><h3>{{ t('loadingTitle') }}</h3><p>{{ t('loadingDescription') }}</p></div>
+    } @else if (state() === 'error') {
+      <div class="state-panel error-panel" role="alert"><span class="state-icon" aria-hidden="true">!</span><h3>{{ t('errorTitle') }}</h3><p>{{ t('errorDescription') }}</p><button class="button button-secondary" type="button" (click)="retry()">{{ t('retry') }}</button></div>
+    } @else if (isEmpty()) {
+      <div class="state-panel empty-panel"><span class="state-icon" aria-hidden="true">⌕</span><h3>{{ t('emptyTitle') }}</h3><p>{{ t('emptyDescription') }}</p></div>
+    } @else {
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th scope="col">{{ t('nameColumn') }}</th><th scope="col">{{ t('statusColumn') }}</th><th scope="col" class="numeric-cell">{{ t('membersColumn') }}</th><th scope="col">{{ t('ownerColumn') }}</th><th scope="col">{{ t('createdColumn') }}</th></tr></thead>
+          <tbody>
+            @for (organisation of organisations(); track organisation.key) {
+              <tr>
+                <td class="name-cell"><span class="org-avatar" aria-hidden="true">{{ (organisation.name ?? '?').slice(0, 1).toLocaleUpperCase() }}</span><span class="org-name" [title]="organisation.name ?? t('unnamedOrganisation')">{{ organisation.name ?? t('unnamedOrganisation') }}</span></td>
+                <td><span class="status-pill" [class.status-active]="organisation.status === 'active'" [class.status-inactive]="organisation.status === 'inactive'" [class.status-suspended]="organisation.status === 'suspended'" [class.status-unknown]="organisation.status === 'unknown'"><span class="status-dot" aria-hidden="true"></span><span>{{ statusText(organisation.status) }}</span></span></td>
+                <td class="numeric-cell">{{ organisation.memberCount | number }}</td>
+                <td class="owner-cell">{{ organisation.ownerEmail ?? t('notAvailable') }}</td>
+                <td class="date-cell">{{ organisation.createdAt ? (organisation.createdAt | date:'mediumDate') : t('notAvailable') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <footer class="pagination"><span>{{ t('pageSummary').replace('{{page}}', page().toString()).replace('{{pages}}', pages().toString()) }}</span><div><button class="button button-secondary pagination-button" type="button" [disabled]="page() <= 1" (click)="movePage(page() - 1)">{{ t('previousPage') }}</button><button class="button button-secondary pagination-button" type="button" [disabled]="page() >= pages()" (click)="movePage(page() + 1)">{{ t('nextPage') }}</button></div></footer>
+    }
+  </section>
+  <footer class="page-footer"><span>{{ t('appTitle') }}</span><span>{{ t('copyright') }}</span></footer>
+</main>
